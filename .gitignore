@@ -1,0 +1,21 @@
+# 주최 측 제공 코드 — 재배포 권한 불명확, 리포에 포함하지 않음
+해커톤/
+
+# 데이터셋 (실험실 인물 포함 사진) 및 학습 부산물
+arrow_dataset/
+arrow_dataset_unused/
+runs/
+__pycache__/
+
+# 사전학습 가중치 / 백업 모델 (arrow_classifier.pt 만 포함)
+yolo*.pt
+arrow_classifier_5cls.bak.pt
+
+# 무관한 실험 파일
+Aquarium/
+1.py
+2.py
+3.py
+webcam.py
+arrow_test.py
+arrow_ros_controller.py
