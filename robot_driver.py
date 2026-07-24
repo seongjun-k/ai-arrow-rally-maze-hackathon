@@ -15,7 +15,7 @@ UNSTAMPED = "--unstamped" in sys.argv
 MSG = Twist if UNSTAMPED else TwistStamped
 
 SAFE = {'MAX_SPEED': 0.20, 'TURN_SPEED': 1.5}
-RACE = {'MAX_SPEED': 0.26, 'TURN_SPEED': 1.5}   # 직선만 최대 — 1.8 rad/s 회전은 관성 밀림으로 위치 틀어짐
+RACE = {'MAX_SPEED': 0.22, 'TURN_SPEED': 1.5}   # 0.26(하드웨어 최대)은 제어 여유 없음 — 살짝 감속
 PRESET = SAFE if "--safe" in sys.argv else RACE  # 기본 = 최대 속도, --safe 로 감속
 MAX_SPEED = PRESET['MAX_SPEED']
 TURN_SPEED = PRESET['TURN_SPEED']
@@ -29,7 +29,8 @@ TURN_DELTA = {'left': math.pi / 2, 'right': -math.pi / 2}   # 좌/우만 사용 
 TURN_DIST = 0.35  # 화살표 확정 상태에서 전방(화살표 벽)이 이 거리면 바로 90도 회전
 READ_STOP = 0.45  # 미확정 시 여기서 멈춰 분류 (더 가면 화살표가 화면을 벗어남)
 TURN_DONE = 0.05  # 목표 각도 오차(rad)가 이 이내면 회전 종료
-ARROW_DIST = 1.5      # 이보다 전방이 멀면 /arrow_dir 무시 (이전 교차로 잔류 메시지 차단)
+TURN_NEED = 3     # front<=TURN_DIST 연속 스캔 수 — 개구부 모서리 스침으로 인한 조기 회전 방지
+ARROW_DIST = 1.0      # 이보다 전방이 멀면 /arrow_dir 무시 (원거리 오인식·잔류 메시지 차단)
 ARROW_HOLDOFF = 1.5   # 회전 종료 후 이 시간(초) 동안 /arrow_dir 무시 (재래치 방지)
 STEER_FADE = 0.7      # 전방이 이보다 가까우면 중앙 유지 조향을 선형으로 줄여 직진 접근
 APPROACH_MIN = 0.10   # 화살표 확정 후 회전 지점까지 기어가지 않게 하는 최저 접근 속도
@@ -63,6 +64,11 @@ def sector_min(scan, lo_deg, hi_deg):
 class RobotDriver(Node):
     def __init__(self):
         super().__init__("robot_driver")
+        import socket
+        if not socket.gethostname().startswith("turtlebot"):
+            self.get_logger().warning(
+                "이 노드는 로봇(Pi)에서 실행해야 합니다! 노트북 실행 시 WiFi scan 끊김으로 "
+                "2초 정지·중앙 유지 실패가 발생합니다 — ssh turtlebot@192.168.4.1 에서 실행하세요")
         self.pub = self.create_publisher(MSG, "/cmd_vel", 10)
         self.create_subscription(String, "/arrow_dir", self.on_arrow, 10)
         self.create_subscription(LaserScan, "/scan", self.on_scan, qos_profile_sensor_data)
@@ -80,6 +86,7 @@ class RobotDriver(Node):
         self.prev_err = 0.0
         self.arrow_ignore_until_ns = 0   # 회전 직후 잔류 화살표 무시 기한
         self.grid_ref = None             # 격자 기준 방위 (첫 odom yaw = 시작 복도 방향)
+        self.turn_cnt = 0                # front<=TURN_DIST 연속 스캔 카운터
 
     def send(self, lin, ang):
         msg = MSG()
@@ -160,7 +167,10 @@ class RobotDriver(Node):
         ang = max(-TURN_SPEED, min(TURN_SPEED, ang))   # 조향 총량 클램프
 
         # 화살표 확정 + 화살표 벽까지 일정 거리 -> 그 자리에서 90도 회전
-        if self.confirmed in TURN_DELTA and front <= TURN_DIST and self.yaw is not None:
+        near = (self.confirmed in TURN_DELTA and front <= TURN_DIST
+                and self.yaw is not None)
+        self.turn_cnt = self.turn_cnt + 1 if near else 0
+        if near and self.turn_cnt >= TURN_NEED:
             side = left if self.confirmed == 'left' else right
             if side > SIDE_OPEN:        # 그쪽이 실제로 뚫려 있을 때만 회전 (주최 코드에서 이식)
                 self.enter_turn()

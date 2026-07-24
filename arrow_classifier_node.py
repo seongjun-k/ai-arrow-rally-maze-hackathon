@@ -10,9 +10,9 @@ from sensor_msgs.msg import CompressedImage, LaserScan
 from std_msgs.msg import String
 from ultralytics import YOLO
 
-READ_DIST = 1.5       # 여기부터 화살표 분류 시작
-INFER_PERIOD = 0.2    # YOLO 추론 최소 간격(초) — 노트북 추론 실측 ~5ms 라 0.2 로 단축 (빠른 확정)
-CONF_MIN = 0.70       # 확신도 기준
+READ_DIST = 1.0       # 여기부터 화살표 분류 시작 — 1.5m 는 화살표가 작아 좌/우 오인식 발생(실측)
+INFER_PERIOD = 0.05   # YOLO 추론 최소 간격(초) — 추론 실측 ~5ms, 카메라 fps가 실질 상한 (빠른 확정)
+CONF_MIN = 0.90       # 확신도 기준 — 벽 무늬 오인식 방지 상향
 NEED = 3              # 같은 방향 연속 프레임 수
 USE_LABELS = ('left', 'right')   # 이 라벨만 사용 — backward/front 클래스는 무시
 
